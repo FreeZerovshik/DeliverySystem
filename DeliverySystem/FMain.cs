@@ -28,6 +28,9 @@ namespace DeliverySystem
 
         private void bOpenFile_Click(object sender, EventArgs e)
         {
+            
+            Grid.DataSource = null;
+            Grid.Columns.Clear();
             OpenFileDialog openFileD = new OpenFileDialog();
             openFileD.Filter = "Mdb Files|*.mdb";
             openFileD.Title = "Select a Mdb File";
@@ -45,15 +48,7 @@ namespace DeliverySystem
             Grid.Columns.Add("SNAME", "кор. имя");
             Grid.Columns.Add("NAME", "наименование");
             Grid.Columns.Add("SECTION", "секциия кода");
-            //Grid.Columns.Add("SOURCE", "PL+");
-
-
-            Grid.Columns["CLASS"].Width = 100;
-            Grid.Columns["NAME"].Width = 200;
-            Grid.pr
-            //  Grid.Columns["SOURCE"].Width = 500;
-
-
+            
             DataGridViewImageColumn img = new DataGridViewImageColumn();
 
             Image image = Image.FromFile("sql_file.png");
@@ -64,6 +59,10 @@ namespace DeliverySystem
             img.Name = "SOURCE";
             img.ImageLayout = DataGridViewImageCellLayout.Zoom;
 
+            Grid.Columns["CLASS"].Width = 100;
+            Grid.Columns["NAME"].Width = 300;
+            Grid.Columns["SECTION"].Width = 100;
+            Grid.Columns["SOURCE"].Width = 50;
 
             // Connection string and SQL query  
             string connectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;Data Source="+ mdb_file_path;
@@ -141,7 +140,7 @@ namespace DeliverySystem
 
             if (File.Exists(tmp_file))  File.Delete(tmp_file);
 
-            strData = _myAttachments[dgvCell.RowIndex+1];
+            strData = _myAttachments[dgvCell.RowIndex];
             File.WriteAllText(tmp_file, strData.Replace("\n", "\r\n"));
 
             if (File.Exists(tmp_file))
