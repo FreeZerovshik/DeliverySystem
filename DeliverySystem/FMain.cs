@@ -10,15 +10,17 @@ using System.Windows.Forms;
 using System.Data.OleDb;
 using System.IO;
 using System.Diagnostics;
+using Newtonsoft.Json;
 
 namespace DeliverySystem
 {
     public partial class FMain : Form
     {
         static string mdb_file_path;
-        static string NL = System.Environment.NewLine; 
+        static string NL = System.Environment.NewLine;
+        dynamic config;
 
-        DataTable tData;
+      //  DataTable tData;
         Dictionary<int, string> _myAttachments = new Dictionary<int, string>();
 
         public FMain()
@@ -31,6 +33,7 @@ namespace DeliverySystem
             
             Grid.DataSource = null;
             Grid.Columns.Clear();
+
             OpenFileDialog openFileD = new OpenFileDialog();
             openFileD.Filter = "Mdb Files|*.mdb";
             openFileD.Title = "Select a Mdb File";
@@ -49,6 +52,7 @@ namespace DeliverySystem
             Grid.Columns.Add("NAME", "наименование");
             Grid.Columns.Add("SECTION", "секциия кода");
             
+
             DataGridViewImageColumn img = new DataGridViewImageColumn();
 
             Image image = Image.FromFile("sql_file.png");
@@ -59,14 +63,22 @@ namespace DeliverySystem
             img.Name = "SOURCE";
             img.ImageLayout = DataGridViewImageCellLayout.Zoom;
 
-            Grid.Columns["CLASS"].Width = 100;
-            Grid.Columns["NAME"].Width = 300;
-            Grid.Columns["SECTION"].Width = 100;
+            Grid.Columns.Add("STATE", "Статус");
+
+
+            Grid.Columns["CLASS"].Width = 50;
+            Grid.Columns["SNAME"].Width = 70;
+            Grid.Columns["NAME"].Width = 250;
+            Grid.Columns["SECTION"].Width = 50;
             Grid.Columns["SOURCE"].Width = 50;
+            Grid.Columns["STATE"].Width = 30;
+
+
 
             // Connection string and SQL query  
             string connectionString = @"Provider=Microsoft.Jet.OLEDB.4.0;Data Source="+ mdb_file_path;
             string strSQL = "SELECT m.CLASS_ID, m.SHORT_NAME, m.NAME, s.TYPE, s.TEXT FROM METHODS m, SOURCES_LONG s where m.id = s.method_id order by s.method_id, s.type";
+           
             // Create a connection  
             using (OleDbConnection connection = new OleDbConnection(connectionString))
             {
@@ -80,8 +92,7 @@ namespace DeliverySystem
                     // Execute command  
                     using (OleDbDataReader reader = command.ExecuteReader())
                     {
-                        
-                        
+
                         tLog.AppendText("------------Original data----------------" + NL);
                         while (reader.Read())
                         {
@@ -90,18 +101,8 @@ namespace DeliverySystem
                                            reader["SHORT_NAME"].ToString(), 
                                            reader["NAME"].ToString(),
                                            reader["TYPE"].ToString(),
-                                          image
-                                           //iconColumn
-                                           //reader["TEXT"].ToString()
-
+                                           image
                                            );
-
-                            //Grid[yourColumn, yourRow].Value = Image.FromFile(path)
-
-
-                            //var txt = reader["TEXT"].ToString();
-
-                            // string[] code_txt = txt;
 
                             if (_myAttachments.ContainsKey(Grid.Rows.Count - 1))
                                 _myAttachments[Grid.Rows.Count - 1] = reader["TEXT"].ToString();
@@ -116,23 +117,14 @@ namespace DeliverySystem
                 }
 
 
-              /*  tLog.AppendText("-------------- Array -------------------"+NL);
-
-                foreach (var item in _myAttachments)
-                {
-                    tLog.AppendText("idx = " + item.Value + NL );
-                }
-                */
-
-
                 // The connection is automatically closed becasuse of using block.  
                         }
             
         }
 
-        private void DownloadAttachment(DataGridViewCell dgvCell/*, string p_method_name*/)
+        private void DownloadAttachment(DataGridViewCell dgvCell, string p_method_name)
         {
-            string p_method_name = "temp";
+            //string p_method_name = "temp";
 
             string strData = null;
             string tmp_file = p_method_name + ".sql";
@@ -147,8 +139,7 @@ namespace DeliverySystem
             {
                 try
                 {
-                    /*
-                     * http://docs.notepad-plus-plus.org/index.php/Command_Line_Switches
+                    /* http://docs.notepad-plus-plus.org/index.php/Command_Line_Switches
                      * Examples
                         Note for Windows users: Be sure to NOT put quotes around the entire command line when creating a shortcut.
                         This will not work: "C:\Program Files (x86)\Notepad++\notepad++.exe -openSession C:\<my path>\session.xml"
@@ -163,7 +154,8 @@ namespace DeliverySystem
                      */
                     Process.Start("notepad++.exe", tmp_file);
                 } catch (Exception ex) {
-                    //tLog.AppendText(ex.Message);
+                    tLog.AppendText("Ошибка: " + ex.Message + NL);
+                    tLog.AppendText("!Откроем код с помощью блокнота");
                     Process.Start("notepad.exe", tmp_file);
                 }
                 
@@ -179,9 +171,43 @@ namespace DeliverySystem
 
             if (Grid.CurrentCell.OwningColumn.Name  == "SOURCE") {
 
-               DownloadAttachment(Grid.CurrentCell /*,Grid.SelectedCells[Grid.Columns["SNAME"].Index()]*/);
+               DownloadAttachment(Grid.CurrentCell , Grid.CurrentRow.Cells["SNAME"].Value.ToString());
             }
           
         }
+
+        private void Grid_CellClick(object sender, DataGridViewCellEventArgs e)
+        {
+            tLog.AppendText(NL);
+            tLog.AppendText(Grid.CurrentRow.Cells["SNAME"].Value.ToString());
+        }
+
+        private void FMain_Load(object sender, EventArgs e)
+        {
+            LoadJson("config.json");
+        }
+
+
+
+        public void LoadJson(string p_file)
+        {
+            tLog.AppendText("------------ Load Config ------------------");
+            using (StreamReader r = new StreamReader(p_file))
+            {
+                string json = r.ReadToEnd();
+
+              //  tLog.AppendText(json + NL);
+                ///List<Config> config = JsonConvert.DeserializeObject<List<Config>>(json);
+
+                config = JsonConvert.DeserializeObject(json);
+
+
+                tLog.AppendText("------------ parse json------------------" + NL);
+                tLog.AppendText("ftp_url: "+ config.ftp.url + NL);
+                tLog.AppendText("pattern: " + config.pattern + NL);
+
+            }
+        }
+
     }
 } 

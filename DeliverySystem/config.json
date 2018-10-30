@@ -1,0 +1,31 @@
+{
+   "ftp": {
+       "url": "ftp.ftc.ru",
+       "user": "anonymous",
+       "pass": "anonymous",
+       "def_directory" : "download",
+       "filename" : "All.zip",
+       "upload_file": "upload.txt"
+   },
+
+   "arm":{ "pick" : "C:\\ARM\\Pick93_145.exe"
+          }, 
+   "tns": {
+      "vtb24_dev": { "user" : "IBS",
+                     "pass" : "IBS"
+                   },
+      "vtb24_daily": { "user" : "IBS",
+                     "pass" : "IBS"
+                   }            
+       
+   },
+
+   "pattern": {
+            "проверка переменной типа boolean" : "boolean",
+            "проверка наличия блоков declare"  : "declare"
+              },
+    "critical_object" : {
+              "main_docum": "doc_to_prov"
+               }
+
+}
