@@ -11,6 +11,7 @@ using System.Data.OleDb;
 using System.IO;
 using System.Diagnostics;
 using Newtonsoft.Json;
+using System.Text.RegularExpressions;
 
 namespace DeliverySystem
 {
@@ -22,6 +23,7 @@ namespace DeliverySystem
 
       //  DataTable tData;
         Dictionary<int, string> _myAttachments = new Dictionary<int, string>();
+        Dictionary<int, string> _codeTree = new Dictionary<int, string>();
 
         public FMain()
         {
@@ -96,7 +98,7 @@ namespace DeliverySystem
                         tLog.AppendText("------------Original data----------------" + NL);
                         while (reader.Read())
                         {
-                            tLog.AppendText("Class:"+ reader["CLASS_ID"].ToString() + " SName: " + reader["SHORT_NAME"].ToString() +" | " + reader["NAME"].ToString() + NL);
+                          //  tLog.AppendText("Class:"+ reader["CLASS_ID"].ToString() + " SName: " + reader["SHORT_NAME"].ToString() +" | " + reader["NAME"].ToString() + NL);
                             Grid.Rows.Add( reader["CLASS_ID"].ToString(),
                                            reader["SHORT_NAME"].ToString(), 
                                            reader["NAME"].ToString(),
@@ -105,9 +107,9 @@ namespace DeliverySystem
                                            );
 
                             if (_myAttachments.ContainsKey(Grid.Rows.Count - 1))
-                                _myAttachments[Grid.Rows.Count - 1] = reader["TEXT"].ToString();
+                                _myAttachments[Grid.Rows.Count - 1] = reader["TEXT"].ToString().Replace("\n", "\r\n");
                             else
-                                _myAttachments.Add(Grid.Rows.Count - 1, reader["TEXT"].ToString());
+                                _myAttachments.Add(Grid.Rows.Count - 1, reader["TEXT"].ToString().Replace("\n", "\r\n"));
                         }
                     }
                 }
@@ -133,7 +135,8 @@ namespace DeliverySystem
             if (File.Exists(tmp_file))  File.Delete(tmp_file);
 
             strData = _myAttachments[dgvCell.RowIndex];
-            File.WriteAllText(tmp_file, strData.Replace("\n", "\r\n"));
+            //File.WriteAllText(tmp_file, strData.Replace("\n", "\r\n"));
+            File.WriteAllText(tmp_file, strData);
 
             if (File.Exists(tmp_file))
             {
@@ -169,22 +172,140 @@ namespace DeliverySystem
         {
             //MessageBox.Show("Selected = " + Grid.SelectedRows[1]);
 
-            if (Grid.CurrentCell.OwningColumn.Name  == "SOURCE") {
+           if (Grid.CurrentCell.OwningColumn.Name  == "SOURCE") {
 
-               DownloadAttachment(Grid.CurrentCell , Grid.CurrentRow.Cells["SNAME"].Value.ToString());
+                DownloadAttachment(Grid.CurrentCell , Grid.CurrentRow.Cells["SNAME"].Value.ToString());
+                //get_function(Grid.CurrentCell);
+
+                get_comment(_myAttachments[Grid.CurrentCell.RowIndex]);
+                get_prog(_myAttachments[Grid.CurrentCell.RowIndex]);
             }
-          
+
+           
         }
 
         private void Grid_CellClick(object sender, DataGridViewCellEventArgs e)
         {
             tLog.AppendText(NL);
-            tLog.AppendText(Grid.CurrentRow.Cells["SNAME"].Value.ToString());
+            tLog.AppendText(Grid.CurrentRow.Cells["SNAME"].Value.ToString()+NL);
         }
 
         private void FMain_Load(object sender, EventArgs e)
         {
             LoadJson("config.json");
+
+        }
+
+        private void get_comment(string p_code)
+        {
+            Regex regex = new Regex(@LexicalAnalyzer.p_comment, RegexOptions.IgnoreCase);
+
+            var i = 1;
+            foreach (var str in p_code.Split(new string[] { Environment.NewLine }, StringSplitOptions.None))
+            {
+                MatchCollection matches = regex.Matches(str);
+                if (matches.Count > 0)
+                {
+                    foreach (Match match in matches)
+                        tLog.AppendText("n_str:"+ i +" n_char:" + match.Index + " str:" + match.Value.Trim() + NL);
+                }
+                i++;
+            }
+        }
+
+        private string parse(string p_str,string p_patt)
+        {
+            Regex regex = new Regex(@p_patt, RegexOptions.IgnoreCase);
+
+            string result = null;
+
+             MatchCollection matches = regex.Matches(p_str);
+                if (matches.Count > 0)
+                {
+                    foreach (Match match in matches)
+                        //tLog.AppendText("n_str:" + i + " n_char:" + match.Index + " str:" + match.Value.Trim() + NL);
+                        result = match.Value.Trim();
+                }
+
+            return result;
+        }
+
+
+        private void get_prog(string p_code)
+        {
+            Regex regex = new Regex(@LexicalAnalyzer.p_prog, RegexOptions.IgnoreCase);
+            // Regex start_scope = new Regex(@"(", RegexOptions.IgnoreCase);
+            //Regex end_scope = new Regex(@")", RegexOptions.IgnoreCase);
+            string prog_full = null;
+            string prog_name = null;
+            string prog_param = null;
+
+            bool b_next = false;
+
+            int n_str = 1;
+            foreach (var str in p_code.Split(new string[] { Environment.NewLine }, StringSplitOptions.None))
+            {
+                MatchCollection matches = regex.Matches(str);
+                if (matches.Count > 0)
+                {
+                    foreach (Match match in matches)
+                    {//1 нашли строку с подпрограммой
+                       // tLog.AppendText("n_str:" + n_str + " n_char:" + match.Index + " str:" + match.Value.Trim() + NL);
+                        
+
+                        prog_name = match.Value.Trim();
+                       // tLog.AppendText(prog_name + NL);
+                    }
+
+                }
+
+                // найдем параметры подпрораммы
+                if (prog_name != null)
+                {
+                    tLog.AppendText(prog_name + NL);
+                    tLog.AppendText("-----------------------------------------" + NL);
+
+
+                    int b_scope = str.IndexOf("(") + 1;
+                    int e_scope = str.IndexOf(")");
+
+
+                    if (b_scope > 0 && e_scope > 0)  // все на одно строке
+                    {
+                        prog_param = str.Substring(b_scope, e_scope - b_scope);
+                        b_next = false;
+                    }
+                    else if (b_scope > 0 && e_scope == 0)  // только открытие 
+                    {
+                        prog_param += str.Substring(b_scope, str.Length);
+                        b_next = true;
+                    }
+                    else if (b_next)
+                    {
+                        if (e_scope > 0) // продолжение и найдено закрытие
+                        {
+                            prog_param += str.Substring(0, e_scope);
+                            b_next = false;
+
+                        }
+                        else
+                        {
+                            prog_param += str;
+                            b_next = true;
+                        }
+                    }
+                    else
+                    {
+                        prog_param += str;
+                        b_next = true;
+                    }
+
+                    // закончили разбор параметров
+                    if (!b_next) tLog.AppendText(prog_param + NL); prog_name = null; prog_param = null;
+                }
+
+                n_str++;
+            }
         }
 
 
@@ -207,6 +328,35 @@ namespace DeliverySystem
                 tLog.AppendText("pattern: " + config.pattern + NL);
 
             }
+        }
+
+        public void get_function(DataGridViewCell dgvCell)
+        {
+            //Grid.Columns.Add("STRUCT", "Структура");
+
+            string strData = null;
+            LexicalAnalyzer lex = new LexicalAnalyzer();
+
+            tLog.AppendText("patt=" + lex.patt_get_obj_name + NL);
+
+            Regex regex = new Regex("(function|procedure)[A-z]+", RegexOptions.IgnoreCase);
+            
+            strData = _myAttachments[dgvCell.RowIndex];
+
+            tLog.AppendText("strData=" + strData + NL);
+
+            MatchCollection matches = regex.Matches(strData);
+            if (matches.Count > 0)
+            {
+                foreach (Match match in matches)
+                    tLog.AppendText("n:"+match.Index+" str:"+match.Value.Trim()+NL);
+            }
+            else
+            {
+                tLog.AppendText("Совпадений не найдено");
+            }
+
+
         }
 
     }

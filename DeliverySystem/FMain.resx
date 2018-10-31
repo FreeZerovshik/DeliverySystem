@@ -195,8 +195,11 @@
   <data name="&gt;&gt;tLog.ZOrder" xml:space="preserve">
     <value>1</value>
   </data>
+  <data name="Grid.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Bottom</value>
+  </data>
   <data name="Grid.Location" type="System.Drawing.Point, System.Drawing">
-    <value>0, 42</value>
+    <value>0, 48</value>
   </data>
   <data name="Grid.Size" type="System.Drawing.Size, System.Drawing">
     <value>827, 278</value>
