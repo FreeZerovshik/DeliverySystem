@@ -229,6 +229,12 @@ namespace DeliverySystem
 
             return result;
         }
+        
+
+        private int cnt_char(string p_str, char p_patt)
+        {
+           return p_str.Split(p_patt).Length - 1;
+        }
 
 
         private void get_prog(string p_code)
@@ -236,78 +242,77 @@ namespace DeliverySystem
             Regex regex = new Regex(@LexicalAnalyzer.p_prog, RegexOptions.IgnoreCase);
             // Regex start_scope = new Regex(@"(", RegexOptions.IgnoreCase);
             //Regex end_scope = new Regex(@")", RegexOptions.IgnoreCase);
-            string prog_full = null;
+
             string prog_name = null;
             string prog_param = null;
 
-            bool b_next = false;
+            int b_scope_cnt = 0;                                                 // счетчик откр. скобок
+            int e_scope_cnt = 0;                                                // счетчик закр. скобок
+
+            int prog_name_pos = 0;
+
+            bool b_next = true;
+            //int prog_name_pos;
 
             int n_str = 1;
             foreach (var str in p_code.Split(new string[] { Environment.NewLine }, StringSplitOptions.None))
             {
+
                 MatchCollection matches = regex.Matches(str);
                 if (matches.Count > 0)
                 {
                     foreach (Match match in matches)
                     {//1 нашли строку с подпрограммой
-                       // tLog.AppendText("n_str:" + n_str + " n_char:" + match.Index + " str:" + match.Value.Trim() + NL);
-                        
-
-                        prog_name = match.Value.Trim();
-                       // tLog.AppendText(prog_name + NL);
+                        prog_name = match.Value;    // наим подпрограммы
+                        prog_name_pos = match.Index + prog_name.Length; // конечная позиция подпрограммы
                     }
 
                 }
+
 
                 // найдем параметры подпрораммы
                 if (prog_name != null)
                 {
-                    tLog.AppendText(prog_name + NL);
-                    tLog.AppendText("-----------------------------------------" + NL);
-
-
-                    int b_scope = str.IndexOf("(") + 1;
-                    int e_scope = str.IndexOf(")");
-
-
-                    if (b_scope > 0 && e_scope > 0)  // все на одно строке
+                    // разберем строку посимвольно
+                    int i = 1;
+                    foreach (char c in str)
                     {
-                        prog_param = str.Substring(b_scope, e_scope - b_scope);
-                        b_next = false;
-                    }
-                    else if (b_scope > 0 && e_scope == 0)  // только открытие 
-                    {
-                        prog_param += str.Substring(b_scope, str.Length);
-                        b_next = true;
-                    }
-                    else if (b_next)
-                    {
-                        if (e_scope > 0) // продолжение и найдено закрытие
+                        if (c == '(')   b_scope_cnt++;
+                        if (c == ')')   e_scope_cnt++;
+                        
+                              
+                        if (b_scope_cnt > 0 && b_scope_cnt != e_scope_cnt)  // все на одно строке
                         {
-                            prog_param += str.Substring(0, e_scope);
+                            prog_param += c;
+                        } else if (b_scope_cnt > 0 && b_scope_cnt == e_scope_cnt) {
+                            prog_param += c;
                             b_next = false;
-
+                            break;
                         }
-                        else
-                        {
-                            prog_param += str;
-                            b_next = true;
-                        }
-                    }
-                    else
-                    {
-                        prog_param += str;
-                        b_next = true;
+                        i++;
                     }
 
-                    // закончили разбор параметров
-                    if (!b_next) tLog.AppendText(prog_param + NL); prog_name = null; prog_param = null;
                 }
 
+                 // закончили разбор параметров
+                 if (b_next == false)
+                 {
+                     tLog.AppendText("-----------------------------------------" + NL);
+                     tLog.AppendText(prog_name + NL);
+                     tLog.AppendText("-----------------------------------------" + NL);
+                     tLog.AppendText(prog_param.Replace('\t', ' ') + NL);
+                     tLog.AppendText("*****************************************" + NL);
+                     prog_name = null;
+                     prog_param = null;
+                     //b_scope_pos = 0;
+                     //e_scope_pos = 0;
+                     b_scope_cnt = 0;
+                     e_scope_cnt = 0;
+                    b_next = true;
+                 }
                 n_str++;
             }
         }
-
 
 
         public void LoadJson(string p_file)
