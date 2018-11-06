@@ -347,9 +347,11 @@ namespace DeliverySystem
                             prog_param += c;
                         } else if (b_scope_cnt > 0 && b_scope_cnt == e_scope_cnt) {
                             prog_param += c;
-                            prog_param = Regex.Replace(prog_param.Trim(new Char[] { '(', ')'}),@"(\t)+"," ");
+                            //prog_param = Regex.Replace(prog_param.Trim(new Char[] { '(', ')'}),@"(\t)+"," ");
 
-                            //prog_param = Regex.Replace(prog_param.Trim(), @"(\t)+", " ");
+                            prog_param = prog_param.Trim(new Char[] { '(', ' ' }).Remove(prog_param.LastIndexOf(')'), 1); // удалим скобки и пробелы по краям
+
+                            prog_param = Regex.Replace(prog_param, @"(\t)+", " ");
 
                             get_param(ref prog_param, ref _procTree);
                             
