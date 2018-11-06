@@ -23,7 +23,11 @@ namespace DeliverySystem
 
       //  DataTable tData;
         Dictionary<int, string> _myAttachments = new Dictionary<int, string>();
-        Dictionary<int, string> _codeTree = new Dictionary<int, string>();
+
+        SubProgramm _procTree;
+
+
+
 
         public FMain()
         {
@@ -175,7 +179,6 @@ namespace DeliverySystem
            if (Grid.CurrentCell.OwningColumn.Name  == "SOURCE") {
 
                 DownloadAttachment(Grid.CurrentCell , Grid.CurrentRow.Cells["SNAME"].Value.ToString());
-                //get_function(Grid.CurrentCell);
 
                 get_comment(_myAttachments[Grid.CurrentCell.RowIndex]);
                 get_prog(_myAttachments[Grid.CurrentCell.RowIndex]);
@@ -236,20 +239,71 @@ namespace DeliverySystem
            return p_str.Split(p_patt).Length - 1;
         }
 
+        private void get_param(ref string p_code, ref SubProgramm p_subs)
+        {
+            //p_code = p_code.Substring(p_code.IndexOf('(')+1, p_code.LastIndexOf(')')-1);
+            string[] _pars = p_code.Split(',');
+
+            int i = 0;
+            foreach (var par in _pars )
+            {
+                SubProgramm._Params p = new SubProgramm._Params();
+                
+
+                string[] _p = par.Trim().Split(new string[] {" ",":=", }, StringSplitOptions.RemoveEmptyEntries);
+
+
+                p.name = _p[0];
+
+                if (_p.Length == 2) // параметра типа: имя тип
+                {                 
+                    p.type = _p[1];
+                    //if (_p[2].Contains("ref[")) // параметр типа: имя ref тип
+                    //{
+                    //    p.IsRef = true;
+                    //    p.type = _p[2];
+                    //}
+                } else if (_p.Length > 2) 
+                {
+                   
+                    if (_p.Contains("ref")) // параметр типа: имя ref тип
+                    {
+                        p.IsRef = true;
+                        p.type = _p[2];
+
+                        // ищем знач. по умолчанию
+                        if (_p.Contains("default")) p.def_value = _p[4];
+                        else if (_p.Length > 3) p.def_value = string.Join(" ", _p.Skip(3));
+                        
+                    }
+                    else
+                    {
+                        p.type = _p[1];
+                        // ищем знач. по умолчанию
+                        if (_p.Contains("default")) p.def_value = _p[3];
+                        else if (_p.Length > 2) p.def_value = string.Join(" ",_p.Skip(2));
+                    }
+
+                }
+
+                
+
+
+                p_subs.parameters.Add(i, p);
+                i++;
+            }
+        }
+
 
         private void get_prog(string p_code)
         {
             Regex regex = new Regex(@LexicalAnalyzer.p_prog, RegexOptions.IgnoreCase);
-            // Regex start_scope = new Regex(@"(", RegexOptions.IgnoreCase);
-            //Regex end_scope = new Regex(@")", RegexOptions.IgnoreCase);
 
-            string prog_name = null;
             string prog_param = null;
 
-            int b_scope_cnt = 0;                                                 // счетчик откр. скобок
+            int b_scope_cnt = 0;                                                // счетчик откр. скобок
             int e_scope_cnt = 0;                                                // счетчик закр. скобок
 
-            int prog_name_pos = 0;
 
             bool b_next = true;
             //int prog_name_pos;
@@ -263,15 +317,16 @@ namespace DeliverySystem
                 {
                     foreach (Match match in matches)
                     {//1 нашли строку с подпрограммой
-                        prog_name = match.Value;    // наим подпрограммы
-                        prog_name_pos = match.Index + prog_name.Length; // конечная позиция подпрограммы
+                         _procTree= new SubProgramm();
+                        _procTree.name = Regex.Replace(match.Value, @"(procedure|function)", "", RegexOptions.IgnoreCase).Trim();    // наим подпрограммы
+                        _procTree.type = Regex.Match(str, @"(procedure|function)", RegexOptions.IgnoreCase).Value;
+                        _procTree.IsPublic = Regex.IsMatch(str, @"(public)", RegexOptions.IgnoreCase);
                     }
 
                 }
 
-
                 // найдем параметры подпрораммы
-                if (prog_name != null)
+                if (_procTree != null)
                 {
                     // разберем строку посимвольно
                     int i = 1;
@@ -279,13 +334,25 @@ namespace DeliverySystem
                     {
                         if (c == '(')   b_scope_cnt++;
                         if (c == ')')   e_scope_cnt++;
-                        
-                              
-                        if (b_scope_cnt > 0 && b_scope_cnt != e_scope_cnt)  // все на одно строке
+
+                        if (_procTree.type == "function" && str.Contains("return") && b_scope_cnt == 0)
+                        {
+                            if (str.IndexOf("return") < str.IndexOf('(') || str.IndexOf('(') == 0)   // функия без параметров
+                            {
+                                b_next = false;
+                                break;
+                            }
+                        } else if (b_scope_cnt > 0 && b_scope_cnt != e_scope_cnt)  // все на одно строке
                         {
                             prog_param += c;
                         } else if (b_scope_cnt > 0 && b_scope_cnt == e_scope_cnt) {
                             prog_param += c;
+                            prog_param = Regex.Replace(prog_param.Trim(new Char[] { '(', ')'}),@"(\t)+"," ");
+
+                            //prog_param = Regex.Replace(prog_param.Trim(), @"(\t)+", " ");
+
+                            get_param(ref prog_param, ref _procTree);
+                            
                             b_next = false;
                             break;
                         }
@@ -296,18 +363,29 @@ namespace DeliverySystem
 
                  // закончили разбор параметров
                  if (b_next == false)
-                 {
-                     tLog.AppendText("-----------------------------------------" + NL);
-                     tLog.AppendText(prog_name + NL);
-                     tLog.AppendText("-----------------------------------------" + NL);
-                     tLog.AppendText(prog_param.Replace('\t', ' ') + NL);
-                     tLog.AppendText("*****************************************" + NL);
-                     prog_name = null;
-                     prog_param = null;
-                     //b_scope_pos = 0;
-                     //e_scope_pos = 0;
-                     b_scope_cnt = 0;
-                     e_scope_cnt = 0;
+                 {         
+                    
+
+                    tLog.AppendText("-----------------------------------------" + NL);
+                    tLog.AppendText(_procTree.IsPublic+ " " + _procTree.type+" " +_procTree.name + NL);
+                    
+                    tLog.AppendText("*****************************************" + NL);
+                    foreach (var par in _procTree.parameters)
+                    {
+                        tLog.AppendText("name=" + par.Value.name + 
+                                        " ref=" + par.Value.IsRef + 
+                                        " type="+ par.Value.type + 
+                                        " def=" + par.Value.def_value + NL);
+                    }
+                   // tLog.AppendText(prog_param.Replace('\t', ' ') + NL);
+                    tLog.AppendText("*****************************************" + NL);
+                    
+                    //prog_name = null;
+                    _procTree = null;
+                    prog_param = null;
+                    b_scope_cnt = 0;
+                    e_scope_cnt = 0;
+
                     b_next = true;
                  }
                 n_str++;
@@ -333,35 +411,6 @@ namespace DeliverySystem
                 tLog.AppendText("pattern: " + config.pattern + NL);
 
             }
-        }
-
-        public void get_function(DataGridViewCell dgvCell)
-        {
-            //Grid.Columns.Add("STRUCT", "Структура");
-
-            string strData = null;
-            LexicalAnalyzer lex = new LexicalAnalyzer();
-
-            tLog.AppendText("patt=" + lex.patt_get_obj_name + NL);
-
-            Regex regex = new Regex("(function|procedure)[A-z]+", RegexOptions.IgnoreCase);
-            
-            strData = _myAttachments[dgvCell.RowIndex];
-
-            tLog.AppendText("strData=" + strData + NL);
-
-            MatchCollection matches = regex.Matches(strData);
-            if (matches.Count > 0)
-            {
-                foreach (Match match in matches)
-                    tLog.AppendText("n:"+match.Index+" str:"+match.Value.Trim()+NL);
-            }
-            else
-            {
-                tLog.AppendText("Совпадений не найдено");
-            }
-
-
         }
 
     }

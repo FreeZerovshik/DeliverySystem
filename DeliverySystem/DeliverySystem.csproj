@@ -48,6 +48,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="SubProgramm.cs" />
     <Compile Include="LexicalAnalyzer.cs" />
     <Compile Include="FMain.cs">
       <SubType>Form</SubType>
