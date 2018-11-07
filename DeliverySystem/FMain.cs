@@ -181,6 +181,7 @@ namespace DeliverySystem
                 DownloadAttachment(Grid.CurrentCell , Grid.CurrentRow.Cells["SNAME"].Value.ToString());
 
                 get_comment(_myAttachments[Grid.CurrentCell.RowIndex]);
+
                 get_prog(_myAttachments[Grid.CurrentCell.RowIndex]);
             }
 
@@ -234,6 +235,29 @@ namespace DeliverySystem
         }
         
 
+        private string getCommentParams(string p_str)
+        {
+            if (Regex.IsMatch(p_str, @LexicalAnalyzer.p_comment))
+            {
+                int start_pos = 0;
+                int end_pos = 0;
+                var i = 1;
+                foreach (var str in p_str.Split(new string[] { Environment.NewLine }, StringSplitOptions.None))
+                {
+                    MatchCollection matches = Regex.Matches(str, @LexicalAnalyzer.p_comment);
+                    if (matches.Count > 0)
+                    {
+                        foreach (Match match in matches)
+                           
+                        p_str += p_str.Replace(match.Value.Trim(), "");
+                    }
+                    i++;
+                }
+            }
+            return p_str;
+        }
+
+
         private int cnt_char(string p_str, char p_patt)
         {
            return p_str.Split(p_patt).Length - 1;
@@ -242,6 +266,8 @@ namespace DeliverySystem
         private void get_param(ref string p_code, ref SubProgramm p_subs)
         {
             //p_code = p_code.Substring(p_code.IndexOf('(')+1, p_code.LastIndexOf(')')-1);
+           // p_code = getCommentParams(p_code);
+
             string[] _pars = p_code.Split(',');
 
             int i = 0;
@@ -256,16 +282,27 @@ namespace DeliverySystem
                 p.name = _p[0];
 
                 if (_p.Length == 2) // параметра типа: имя тип
-                {                 
+                {
                     p.type = _p[1];
                     //if (_p[2].Contains("ref[")) // параметр типа: имя ref тип
                     //{
                     //    p.IsRef = true;
                     //    p.type = _p[2];
                     //}
-                } else if (_p.Length > 2) 
+                } else if (_p.Length > 2)
                 {
-                   
+                    if (_p.Contains("in"))
+                    {
+                        p.in_par = true;
+                        _p = _p.Where(val => val != "in").ToArray();
+                    }
+
+                    if  (_p.Contains("out"))
+                    {
+                        p.out_par = true;
+                        _p = _p.Where(val => val != "out").ToArray();
+                    }
+
                     if (_p.Contains("ref")) // параметр типа: имя ref тип
                     {
                         p.IsRef = true;
@@ -311,7 +348,7 @@ namespace DeliverySystem
             int n_str = 1;
             foreach (var str in p_code.Split(new string[] { Environment.NewLine }, StringSplitOptions.None))
             {
-
+                string l_str =  Regex.Replace(str, @"(\t)+", " ");
                 MatchCollection matches = regex.Matches(str);
                 if (matches.Count > 0)
                 {
@@ -328,30 +365,36 @@ namespace DeliverySystem
                 // найдем параметры подпрораммы
                 if (_procTree != null)
                 {
+                    
+                    // удалим коментарии из строки с параметрами
+                    if (Regex.IsMatch(l_str, @LexicalAnalyzer.p_comment))
+                        l_str = l_str.Remove(l_str.IndexOf("--"), l_str.Length - l_str.IndexOf("--"));
+
+
                     // разберем строку посимвольно
                     int i = 1;
-                    foreach (char c in str)
+                    foreach (char c in l_str)
                     {
                         if (c == '(')   b_scope_cnt++;
                         if (c == ')')   e_scope_cnt++;
 
-                        if (_procTree.type == "function" && str.Contains("return") && b_scope_cnt == 0)
+                        if (_procTree.type == "function" && l_str.Contains("return") && b_scope_cnt == 0)
                         {
-                            if (str.IndexOf("return") < str.IndexOf('(') || str.IndexOf('(') == 0)   // функия без параметров
+                            if (l_str.IndexOf("return") < l_str.IndexOf('(') || l_str.IndexOf('(') == 0)   // функия без параметров
                             {
                                 b_next = false;
                                 break;
                             }
-                        } else if (b_scope_cnt > 0 && b_scope_cnt != e_scope_cnt)  // все на одно строке
+                        } else if (b_scope_cnt > 0 && b_scope_cnt != e_scope_cnt) 
                         {
                             prog_param += c;
                         } else if (b_scope_cnt > 0 && b_scope_cnt == e_scope_cnt) {
                             prog_param += c;
                             //prog_param = Regex.Replace(prog_param.Trim(new Char[] { '(', ')'}),@"(\t)+"," ");
+                            prog_param = prog_param.Trim(new Char[] { '(', ' ' });
+                            prog_param = prog_param.Remove(prog_param.LastIndexOf(')'),1);
 
-                            prog_param = prog_param.Trim(new Char[] { '(', ' ' }).Remove(prog_param.LastIndexOf(')'), 1); // удалим скобки и пробелы по краям
-
-                            prog_param = Regex.Replace(prog_param, @"(\t)+", " ");
+                            //prog_param = Regex.Replace(prog_param.Trim(), @"(\t)+", " ");
 
                             get_param(ref prog_param, ref _procTree);
                             
@@ -360,6 +403,7 @@ namespace DeliverySystem
                         }
                         i++;
                     }
+
 
                 }
 
@@ -387,7 +431,7 @@ namespace DeliverySystem
                     prog_param = null;
                     b_scope_cnt = 0;
                     e_scope_cnt = 0;
-
+                    l_str = null;
                     b_next = true;
                  }
                 n_str++;
