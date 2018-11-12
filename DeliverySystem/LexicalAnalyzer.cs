@@ -24,9 +24,9 @@ namespace DeliverySystem
 
 
         public static string p_comment = "([-]{2}|\\/\\*).+";
-        public static string p_prog = ("(procedure|function)([\\s])+([A-z]|[\\d]|[_])+");
-        public static string p_public = ("public");
-
+        public static string p_prog = "(procedure|function)([\\s])+([A-z]|[\\d]|[_])+";
+        public static string p_public = "public";
+        public static string p_return = "return";
 
 
         List<string> data;

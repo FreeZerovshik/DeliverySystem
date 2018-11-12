@@ -25,6 +25,8 @@ namespace DeliverySystem
         Dictionary<int, string> _myAttachments = new Dictionary<int, string>();
 
         SubProgramm _procTree;
+        _Vars global_vars;
+
 
 
 
@@ -337,27 +339,63 @@ namespace DeliverySystem
             Regex regex = new Regex(@LexicalAnalyzer.p_prog, RegexOptions.IgnoreCase);
 
             string prog_param = null;
-
+            string prog_result = null;
             int b_scope_cnt = 0;                                                // счетчик откр. скобок
             int e_scope_cnt = 0;                                                // счетчик закр. скобок
 
 
-            bool b_next = true;
+            bool b_next = true;                                                 // признак продолжения цикла для получения списка параметров
+            bool b_end_par_str = false;                                         // признак окончания заголовка проц/функ на строке
             //int prog_name_pos;
 
             int n_str = 1;
             foreach (var str in p_code.Split(new string[] { Environment.NewLine }, StringSplitOptions.None))
             {
-                string l_str =  Regex.Replace(str, @"(\t)+", " ");
+                // нормализация строки, удаление табуляции и спец. языка типа ref[ -> ref [
+                string l_str =  Regex.Replace(str, @"(\t)+", " ").Trim();
+                l_str = Regex.Replace(l_str, @"(\s)?(ref\[)", " ref [");
+
+                if (l_str.Length == 0)
+                {
+                    n_str++;
+                    continue;
+                }
+
+                // удалим одностроковый коментарии
+                if (l_str.Contains("--")) l_str = l_str.Remove(l_str.IndexOf("--"), l_str.Length- l_str.IndexOf("--"));
+                
+                // удалим многострочный коментарий
+                if (l_str.Contains("/*"))
+                {
+                    if (l_str.Contains("*/")) l_str = l_str.Remove(l_str.IndexOf("/*"), l_str.IndexOf("*/")+2);
+                    else l_str = l_str.Remove(l_str.IndexOf("/*"), l_str.Length);
+                }
+
+
+                if (l_str.Length == 0)
+                {
+                    n_str++;
+                    continue;
+                }
+
+                
+                bool l_func = false;                                    // признак функции
+               
+
+
+
+
                 MatchCollection matches = regex.Matches(str);
                 if (matches.Count > 0)
                 {
                     foreach (Match match in matches)
                     {//1 нашли строку с подпрограммой
-                         _procTree= new SubProgramm();
+                        
+                        _procTree = new SubProgramm();
                         _procTree.name = Regex.Replace(match.Value, @"(procedure|function)", "", RegexOptions.IgnoreCase).Trim();    // наим подпрограммы
-                        _procTree.type = Regex.Match(str, @"(procedure|function)", RegexOptions.IgnoreCase).Value;
-                        _procTree.IsPublic = Regex.IsMatch(str, @"(public)", RegexOptions.IgnoreCase);
+                        _procTree.type = Regex.Match(l_str, @"(procedure|function)", RegexOptions.IgnoreCase).Value;
+                        _procTree.IsPublic = Regex.IsMatch(l_str, @"(public)", RegexOptions.IgnoreCase);
+                        
                     }
 
                 }
@@ -365,12 +403,43 @@ namespace DeliverySystem
                 // найдем параметры подпрораммы
                 if (_procTree != null)
                 {
-                    
+                    if (Regex.IsMatch(l_str, @"(\sis)", RegexOptions.IgnoreCase)) b_end_par_str = true;
+
                     // удалим коментарии из строки с параметрами
                     if (Regex.IsMatch(l_str, @LexicalAnalyzer.p_comment))
                         l_str = l_str.Remove(l_str.IndexOf("--"), l_str.Length - l_str.IndexOf("--"));
 
+                    // разбор возвращаемого значения функции
+                    if (_procTree.type == "function" && l_str.Contains("return") )
+                    {
+                        string _patt_ret = "return";
+                        l_func = true;
 
+                        
+
+                        prog_result = l_str.Substring(l_str.IndexOf(_patt_ret));
+
+
+
+                        string[] arr_res = l_str.Substring(l_str.IndexOf(_patt_ret)).Split(new string[] { _patt_ret, "is", " " }, StringSplitOptions.RemoveEmptyEntries);
+
+                        _Vars _result = new _Vars();
+
+                        if (arr_res.Contains("ref"))
+                        {
+                            _result.IsRef = true;
+                            arr_res = arr_res.Where(val => val != "ref").ToArray();
+                        }
+
+                        foreach (var item in arr_res)
+                        {
+                            _result.type = item.Trim();
+                            _procTree.result = _result;
+                        }
+                        prog_result = null;
+                        _result = null;
+                    }
+                    
                     // разберем строку посимвольно
                     int i = 1;
                     foreach (char c in l_str)
@@ -378,26 +447,28 @@ namespace DeliverySystem
                         if (c == '(')   b_scope_cnt++;
                         if (c == ')')   e_scope_cnt++;
 
-                        if (_procTree.type == "function" && l_str.Contains("return") && b_scope_cnt == 0)
+                        if (l_func && b_scope_cnt == 0)
                         {
-                            if (l_str.IndexOf("return") < l_str.IndexOf('(') || l_str.IndexOf('(') == 0)   // функия без параметров
+                            if (l_str.IndexOf("return") < l_str.IndexOf('(') || l_str.IndexOf('(') == 0)   // функция без параметров
                             {
                                 b_next = false;
                                 break;
-                            }
+                            } 
                         } else if (b_scope_cnt > 0 && b_scope_cnt != e_scope_cnt) 
                         {
                             prog_param += c;
                         } else if (b_scope_cnt > 0 && b_scope_cnt == e_scope_cnt) {
                             prog_param += c;
-                            //prog_param = Regex.Replace(prog_param.Trim(new Char[] { '(', ')'}),@"(\t)+"," ");
+
+                            // нормализация параметров, удаляем скобки по краям и пробелы
                             prog_param = prog_param.Trim(new Char[] { '(', ' ' });
                             prog_param = prog_param.Remove(prog_param.LastIndexOf(')'),1);
 
-                            //prog_param = Regex.Replace(prog_param.Trim(), @"(\t)+", " ");
+                         
 
                             get_param(ref prog_param, ref _procTree);
                             
+
                             b_next = false;
                             break;
                         }
@@ -405,16 +476,39 @@ namespace DeliverySystem
                     }
 
 
-                }
+                } else // строка с глобальными переменными/macro/include  т.п.
+                {
+                    global_vars = new _Vars();
+                    string[] global_arr =  p_code.Split(' ');
 
-                 // закончили разбор параметров
-                 if (b_next == false)
+                    if (global_arr.Contains("public")) 
+                    {
+                        global_arr = global_arr.Where(val => val != "public").ToArray();
+                        global_vars.IsPublic = true;
+                    }
+                    if (global_arr.Contains("public")) global_vars.IsPublic = true;
+
+
+
+                    // если есть is это конец заголовка функции, выполним разбор переменных
+                    /*  if (b_end_par_str)
+                      {
+                          foreach (char c in l_str)
+                              get_param(ref prog_param, ref _procTree);
+                      }*/
+
+
+                    // закончили разбор параметров
+                    if (b_next == false)
                  {         
                     
 
                     tLog.AppendText("-----------------------------------------" + NL);
                     tLog.AppendText(_procTree.IsPublic+ " " + _procTree.type+" " +_procTree.name + NL);
-                    
+
+                    if (_procTree.result != null)
+                        tLog.AppendText("resutl ref="+ _procTree.result.IsRef + " type=" + _procTree.result.type  + NL);
+
                     tLog.AppendText("*****************************************" + NL);
                     foreach (var par in _procTree.parameters)
                     {
@@ -433,7 +527,8 @@ namespace DeliverySystem
                     e_scope_cnt = 0;
                     l_str = null;
                     b_next = true;
-                 }
+                    b_end_par_str = false;
+                }
                 n_str++;
             }
         }
