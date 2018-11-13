@@ -34,7 +34,7 @@ namespace DeliverySystem
         public FMain()
         {
             InitializeComponent();
-            tree_code = new _TreeCode();
+            
         }
 
         private void bOpenFile_Click(object sender, EventArgs e)
@@ -179,9 +179,10 @@ namespace DeliverySystem
         {
             //MessageBox.Show("Selected = " + Grid.SelectedRows[1]);
 
-           tree_code = null;
+           //tree_code = null;
+           tree_code = new _TreeCode();
 
-           if (Grid.CurrentCell.OwningColumn.Name  == "SOURCE") {
+            if (Grid.CurrentCell.OwningColumn.Name  == "SOURCE") {
 
                 DownloadAttachment(Grid.CurrentCell , Grid.CurrentRow.Cells["SNAME"].Value.ToString());
 
@@ -189,8 +190,6 @@ namespace DeliverySystem
 
                 get_prog(_myAttachments[Grid.CurrentCell.RowIndex]);
             }
-
-           
         }
 
         private void Grid_CellClick(object sender, DataGridViewCellEventArgs e)
@@ -593,7 +592,7 @@ namespace DeliverySystem
                             //rec_struct += rec_struct;
                             global_arr = global_arr.Where(val => val != "record").ToArray();
 
-                            if (global_arr.Contains("(")) rec_b_scope_cnt++;
+                           /* if (global_arr.Contains("(")) rec_b_scope_cnt++;
                             if (global_arr.Contains(")")) rec_e_scope_cnt++;
 
                             if (rec_b_scope_cnt > 0) rec_struct += string.Join(" ", global_arr);
@@ -604,7 +603,7 @@ namespace DeliverySystem
                                 rec_struct = null;
                                 rec_b_scope_cnt = 0;
                                 rec_e_scope_cnt = 0;
-                            }
+                            }*/
                         }
 
                         if (global_arr.Length >= 1) global_vars.name = global_arr[0];
