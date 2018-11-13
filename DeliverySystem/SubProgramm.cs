@@ -6,48 +6,61 @@ using System.Threading.Tasks;
 
 namespace DeliverySystem
 {
-    class _Vars
+    class _TreeCode
     {
-        public bool IsPublic;
-        public string type;         // table, record
-        public bool IsRef;
-        public bool IsConst;
-        public string name;
-        public string def_value;
-    }
 
-    class _Macro
-    {
-        public string IsPublic;
-        public string name;
-        public string value;
-        public string method;
-    }
+        public Dictionary<int, _Vars> vars = new Dictionary<int, _Vars>(); // гл. переменные
+        public Dictionary<int, _Macro> macros = new Dictionary<int, _Macro>(); // гл. макросы
+        public Dictionary<int, SubProgramm> programms = new Dictionary<int, SubProgramm>(); // гл. макросы
 
-    class SubProgramm
-    {
-        public string type;
-        public bool IsPublic;
-        public string name;
-        public _Vars result;
-        
-        
-        internal class _Params
+
+        internal  class _Vars
         {
-            public string type;
+            public bool IsPublic;
+            public string type;         // table, record
             public bool IsRef;
+            public bool IsConst;
+            public bool IsRec;
+            public bool IsType;
+            public bool IsTable;
             public string name;
             public string def_value;
-            public bool in_par;
-            public bool out_par;
+            public string IndexBy;
         }
 
-        internal class _Code
+        internal class _Macro
         {
-
+            public string IsPublic;
+            public string name;
+            public string value;
+            public string method;
         }
 
-        public Dictionary<int, _Params> parameters = new Dictionary<int, _Params>();
+        internal class SubProgramm
+        {
+            public string type;
+            public bool IsPublic;
+            public string name;
+            public _Vars result;
 
+
+            internal class _Params
+            {
+                public string type;
+                public bool IsRef;
+                public string name;
+                public string def_value;
+                public bool in_par;
+                public bool out_par;
+            }
+
+            internal class _Code
+            {
+
+            }
+
+            public Dictionary<int, _Params> parameters = new Dictionary<int, _Params>();
+
+        }
     }
 }
