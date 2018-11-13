@@ -21,6 +21,7 @@ namespace DeliverySystem
             public bool IsRef;
             public bool IsConst;
             public bool IsRec;
+            public _Vars rec_struct;
             public bool IsType;
             public bool IsTable;
             public string name;

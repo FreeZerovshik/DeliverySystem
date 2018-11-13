@@ -343,26 +343,39 @@ namespace DeliverySystem
             string prog_param = null;
             string rec_struct = null;
             string prog_result = null;
-            int b_scope_cnt = 0;                                                // счетчик откр. скобок
-            int e_scope_cnt = 0;                                                // счетчик закр. скобок
 
-            int rec_b_scope_cnt = 0;
-            int rec_e_scope_cnt = 0;
-            bool rec_parse = false;
+            int b_scope_cnt = 0;                                    // счетчик откр. скобок для подпрограмм
+            int e_scope_cnt = 0;                                    // счетчик закр. скобок для подпрограмм
 
-            bool b_next = true;                                                 // признак продолжения цикла для получения списка параметров
-            bool b_end_par_str = false;                                         // признак окончания заголовка проц/функ на строке
-            //int prog_name_pos;
+            int rec_b_scope_cnt = 0;                                // счетчик открытия скобок для структуры
+            int rec_e_scope_cnt = 0;                                // счетчик зкарытия скобок для стурктуры
 
+          
+            bool rec_parse = false;                                 //признак разбора структуры    
+
+            bool b_next = true;                                     // признак продолжения цикла для получения списка параметров
+            bool b_com_next= false;
+            
+            
+            int begin_cnt = 0;                                      // счетчик начала блока begin    
+            int end_cnt = 0;                                        // счетчик окончания блока
+
+            bool is_func = false;                                   // признак функции
+            bool parse_param_stop = false;                          //признак того что параметры подпрограммы разобраны                
+
+            string proc_code ="";
+
+            // счетчики 
             int n_str = 1;
             int var_cnt = 1;
             int proc_cnt = 1;
             int macro_cnt = 1;
             int inc_cnt = 1;
+
             foreach (var str in p_code.Split(new string[] { Environment.NewLine }, StringSplitOptions.None))
             {
                 // нормализация строки, удаление табуляции и спец. языка типа ref[ -> ref [
-                string l_str =  Regex.Replace(str, @"(\t)+|;", " ").Trim();
+                string l_str = Regex.Replace(str, @"(\t)+|;", " ").Trim();
                 l_str = Regex.Replace(l_str, @"(\s)?(ref\[)", " ref [");
 
                 if (l_str.Length == 0)
@@ -372,15 +385,37 @@ namespace DeliverySystem
                 }
 
                 // удалим одностроковый коментарии
-                if (l_str.Contains("--")) l_str = l_str.Remove(l_str.IndexOf("--"), l_str.Length- l_str.IndexOf("--"));
-                
+                if (l_str.Contains("--")) l_str = l_str.Remove(l_str.IndexOf("--"), l_str.Length - l_str.IndexOf("--"));
+
                 // удалим многострочный коментарий
                 if (l_str.Contains("/*"))
                 {
-                    if (l_str.Contains("*/")) l_str = l_str.Remove(l_str.IndexOf("/*"), l_str.IndexOf("*/")+2);
-                    else l_str = l_str.Remove(l_str.IndexOf("/*"), l_str.Length);
+
+                    if (l_str.Contains("*/"))
+                    {
+                        l_str = l_str.Remove(l_str.IndexOf("/*"), l_str.IndexOf("*/") + 2);
+                        b_com_next = false;
+                       // continue;
+                    }
+                    else
+                    {
+                        l_str = l_str.Remove(l_str.IndexOf("/*"), l_str.Length);
+                        b_com_next = true;
+                        continue;
+                    }
+
                 }
 
+                if (b_com_next) { 
+                    if (l_str.Contains("*/"))
+                    {
+                        l_str = l_str.Remove(0, l_str.IndexOf("*/") + 2);
+                        b_com_next = false;
+                    } else
+                    {
+                        continue;
+                    }
+                }
 
                 if (l_str.Length == 0)
                 {
@@ -388,24 +423,18 @@ namespace DeliverySystem
                     continue;
                 }
 
-                
-                bool l_func = false;                                    // признак функции
-               
-
-
-
 
                 MatchCollection matches = regex.Matches(str);
                 if (matches.Count > 0)
                 {
                     foreach (Match match in matches)
                     {//1 нашли строку с подпрограммой
-                        
+
                         _procTree = new _TreeCode.SubProgramm();
                         _procTree.name = Regex.Replace(match.Value, @"(procedure|function)", "", RegexOptions.IgnoreCase).Trim();    // наим подпрограммы
                         _procTree.type = Regex.Match(l_str, @"(procedure|function)", RegexOptions.IgnoreCase).Value;
                         _procTree.IsPublic = Regex.IsMatch(l_str, @"(public)", RegexOptions.IgnoreCase);
-                        
+                        //IsProg = true;
                     }
 
                 }
@@ -413,8 +442,7 @@ namespace DeliverySystem
                 // найдем параметры подпрораммы
                 if (_procTree != null)
                 {
-                    if (Regex.IsMatch(l_str, @"(\sis)", RegexOptions.IgnoreCase)) b_end_par_str = true;
-
+                   
                     // удалим коментарии из строки с параметрами
                     if (Regex.IsMatch(l_str, @LexicalAnalyzer.p_comment))
                         l_str = l_str.Remove(l_str.IndexOf("--"), l_str.Length - l_str.IndexOf("--"));
@@ -423,9 +451,7 @@ namespace DeliverySystem
                     if (_procTree.type == "function" && l_str.Contains("return"))
                     {
                         string _patt_ret = "return";
-                        l_func = true;
-
-
+                        is_func = true;
 
                         prog_result = l_str.Substring(l_str.IndexOf(_patt_ret));
 
@@ -449,236 +475,239 @@ namespace DeliverySystem
                         _result = null;
                     }
 
-                    // разберем строку посимвольно
-                    int i = 1;
-                    foreach (char c in l_str)
+                    // разбор параметров
+                    //разберем строку посимвольно
+                    if (parse_param_stop == false)
                     {
-                        if (c == '(') b_scope_cnt++;
-                        if (c == ')') e_scope_cnt++;
-
-                        if (l_func && b_scope_cnt == 0)
+                        int i = 1;
+                        foreach (char c in l_str)
                         {
-                            if (l_str.IndexOf("return") < l_str.IndexOf('(') || l_str.IndexOf('(') == 0)   // функция без параметров
+                            if (c == '(') b_scope_cnt++;
+                            if (c == ')') e_scope_cnt++;
+
+                            if (is_func && b_scope_cnt == 0)
+                            {
+                                if (l_str.IndexOf("return") < l_str.IndexOf('(') || l_str.IndexOf('(') == 0)   // функция без параметров
+                                {
+                                    //b_next = false;
+                                    break;
+                                    //continue;
+                                }
+                            }
+                            else if (b_scope_cnt > 0 && b_scope_cnt != e_scope_cnt)
+                            {
+                                prog_param += c;
+                            }
+                            else if (b_scope_cnt > 0 && b_scope_cnt == e_scope_cnt)
+                            {
+                                prog_param += c;
+
+                                // нормализация параметров, удаляем скобки по краям и пробелы
+                                prog_param = prog_param.Trim(new Char[] { '(', ' ' });
+                                prog_param = prog_param.Remove(prog_param.LastIndexOf(')'), 1);
+
+                                get_param(ref prog_param, ref _procTree);
+
+
+                                parse_param_stop = true;
+                                break;
+                                //continue;
+                            }
+                            i++;
+                        }
+                    } else 
+                        if (b_next)
+                        {
+                            if (Regex.IsMatch(l_str, @"(^begin$)")) begin_cnt++;
+                            if (Regex.IsMatch(l_str, @"(^end$)")) end_cnt++;
+
+                        if (begin_cnt > 0)
+                        {
+                            if (begin_cnt == end_cnt)
                             {
                                 b_next = false;
-                                break;
+                                proc_code = null;
+                                //  l_func = false;
+                            } else
+                            {
+                                proc_code += l_str+ NL; 
                             }
                         }
-                        else if (b_scope_cnt > 0 && b_scope_cnt != e_scope_cnt)
-                        {
-                            prog_param += c;
+
                         }
-                        else if (b_scope_cnt > 0 && b_scope_cnt == e_scope_cnt)
-                        {
-                            prog_param += c;
-
-                            // нормализация параметров, удаляем скобки по краям и пробелы
-                            prog_param = prog_param.Trim(new Char[] { '(', ' ' });
-                            prog_param = prog_param.Remove(prog_param.LastIndexOf(')'), 1);
 
 
-
-                            get_param(ref prog_param, ref _procTree);
-
-
-                            b_next = false;
-                            break;
-                        }
-                        i++;
+                    }
+                    else if (l_str.Contains("macro"))
+                    {
+                        // обработка макросов
+                        macro_cnt++;
+                    }
+                    else if (l_str.Contains("include"))
+                    {
+                        // обработка Include
+                        inc_cnt++;
                     }
 
+                    else // строка с глобальными переменными
+                    {
 
-                } else if (l_str.Contains("macro"))
-                {
-                    // обработка макросов
-                    macro_cnt++;
-                } else if (l_str.Contains("include"))
-                {
-                    // обработка Include
-                    inc_cnt++;
-                }
 
-                else // строка с глобальными переменными
-                {
- 
-                    
-                    string[] global_arr = l_str.Split(' ');
+                        string[] global_arr = l_str.Split(' ');
 
-                    if (rec_parse == false) {
-
-                        global_vars = new _TreeCode._Vars();
-
-                        if (global_arr.Contains("public"))
+                        if (rec_parse == false)
                         {
-                            global_arr = global_arr.Where(val => val != "public").ToArray();
-                            global_vars.IsPublic = true;
+
+                            global_vars = new _TreeCode._Vars();
+
+                            if (global_arr.Contains("public"))
+                            {
+                                global_arr = global_arr.Where(val => val != "public").ToArray();
+                                global_vars.IsPublic = true;
+                            }
+
+                            if (global_arr.Contains("ref"))
+                            {
+                                global_arr = global_arr.Where(val => val != "ref").ToArray();
+                                global_vars.IsRef = true;
+                            }
+
+                            if (global_arr.Contains("const"))
+                            {
+                                global_vars.IsConst = true;
+                                global_arr = global_arr.Where(val => val != "const").ToArray();
+
+                            }
+
+                            if (global_arr.Contains("type"))
+                            {
+                                global_arr = global_arr.Where(val => val != "type").ToArray();
+                                global_vars.IsType = true;
+                            }
+
+                            if (global_arr.Contains("default"))
+                            {
+                                global_arr = global_arr.Where(val => val != ":=").ToArray();
+                                global_vars.type = global_arr[1];
+                            }
+
+
+                            if (global_arr.Contains(":="))
+                            {
+                                global_arr = global_arr.Where(val => val != ":=").ToArray();
+                                global_vars.type = global_arr[1];
+                            }
+
+                            if (global_arr.Contains("is"))
+                            {
+                                global_arr = global_arr.Where(val => val != "is").ToArray();
+
+                            }
+
+                            if (global_arr.Contains("of"))
+                            {
+                                global_arr = global_arr.Where(val => val != "of").ToArray();
+
+                            }
+
+                            if (global_arr.Contains("by"))
+                            {
+                                global_arr = global_arr.Where(val => val != "by").ToArray();
+
+                            }
+
+
+
+                            if (global_arr.Contains("table"))
+                            {
+                                global_vars.IsTable = true;
+                                global_arr = global_arr.Where(val => val != "table").ToArray();
+
+                            }
+
+
+                            if (global_arr.Contains("index"))
+                            {
+                                global_vars.IndexBy = global_arr[2];
+                                global_arr = global_arr.Where(val => val != "index").ToArray();
+
+                            }
+
+                            if (global_arr.Contains("record"))
+                            {
+                                rec_parse = true;
+                                global_vars.IsRec = true;
+                                global_arr = global_arr.Where(val => val != "record").ToArray();
+                            }
+
+                            if (global_arr.Length >= 1) global_vars.name = global_arr[0];
+                            if (global_arr.Length >= 2) global_vars.type = global_arr[1];
+
+                            tree_code.vars.Add(var_cnt, global_vars);
+
+                            var_cnt++;
                         }
 
-                        if (global_arr.Contains("ref"))
+                        if (rec_parse == true)
                         {
-                            global_arr = global_arr.Where(val => val != "ref").ToArray();
-                            global_vars.IsRef = true;
-                        }
-
-                        if (global_arr.Contains("const"))
-                        {
-                            int idx = Array.IndexOf(global_arr, "const");
-
-                            global_vars.IsConst = true;
-                            global_arr = global_arr.Where(val => val != "const").ToArray();
-
-                        }
-
-                        if (global_arr.Contains("type"))
-                        {
-                            global_arr = global_arr.Where(val => val != "type").ToArray();
-                            global_vars.IsType = true;
-                        }
-
-                        if (global_arr.Contains("default"))
-                        {
-                            global_arr = global_arr.Where(val => val != ":=").ToArray();
-                            //global_vars.IsConst = true;
-                            global_vars.type = global_arr[1];
-                        }
-
-
-                        if (global_arr.Contains(":="))
-                        {
-                            global_arr = global_arr.Where(val => val != ":=").ToArray();
-                            //global_vars.IsConst = true;
-                            global_vars.type = global_arr[1];
-                        }
-
-                        if (global_arr.Contains("is"))
-                        {
-                            global_arr = global_arr.Where(val => val != "is").ToArray();
-
-                        }
-
-                        if (global_arr.Contains("of")) 
-                        {
-                            global_arr = global_arr.Where(val => val != "of").ToArray();
-
-                        }
-
-                        if (global_arr.Contains("by"))
-                        {
-                            global_arr = global_arr.Where(val => val != "by").ToArray();
-
-                        }
-
-
-
-                        if (global_arr.Contains("table"))
-                        {
-                            global_vars.IsTable = true;
-                            global_arr = global_arr.Where(val => val != "table").ToArray();
-
-                        }
-
-
-                        if (global_arr.Contains("index"))
-                        {
-                            global_vars.IndexBy = global_arr[2];
-                            global_arr = global_arr.Where(val => val != "index").ToArray();
-
-                        }
-
-                        if (global_arr.Contains("record"))
-                        {
-                            rec_parse = true;
-                            global_vars.IsRec = true;
-                            //rec_struct += rec_struct;
-                            global_arr = global_arr.Where(val => val != "record").ToArray();
-
-                           /* if (global_arr.Contains("(")) rec_b_scope_cnt++;
+                            if (global_arr.Contains("(")) rec_b_scope_cnt++;
                             if (global_arr.Contains(")")) rec_e_scope_cnt++;
 
                             if (rec_b_scope_cnt > 0) rec_struct += string.Join(" ", global_arr);
 
                             if (rec_b_scope_cnt > 0 && rec_b_scope_cnt == rec_e_scope_cnt)
                             {
+                                //необходимо добавить разбор рекорд
                                 rec_parse = false;
                                 rec_struct = null;
                                 rec_b_scope_cnt = 0;
                                 rec_e_scope_cnt = 0;
-                            }*/
+                            }
                         }
 
-                        if (global_arr.Length >= 1) global_vars.name = global_arr[0];
-                        if (global_arr.Length >= 2) global_vars.type = global_arr[1];
-
-                        tree_code.vars.Add(var_cnt, global_vars);
-
-                        var_cnt++;
                     }
-
-                    if (rec_parse == true)
-                    {
-                        if (global_arr.Contains("(")) rec_b_scope_cnt++;
-                        if (global_arr.Contains(")")) rec_e_scope_cnt++;
-
-                        if (rec_b_scope_cnt > 0) rec_struct += string.Join(" ", global_arr);
-
-                        if (rec_b_scope_cnt > 0 && rec_b_scope_cnt == rec_e_scope_cnt)
-                        {
-                            rec_parse = false;
-                            rec_struct = null;
-                            rec_b_scope_cnt = 0;
-                            rec_e_scope_cnt = 0;
-                        }
-                    }
-
-                }
-
-                    // если есть is это конец заголовка функции, выполним разбор переменных
-                    /*  if (b_end_par_str)
-                      {
-                          foreach (char c in l_str)
-                              get_param(ref prog_param, ref _procTree);
-                      }*/
 
 
                     // закончили разбор параметров
-                 if (b_next == false)
-                 {
-
-                    
-                    tLog.AppendText("-----------------------------------------" + NL);
-                    tLog.AppendText(_procTree.IsPublic+ " " + _procTree.type+" " +_procTree.name + NL);
-
-                    if (_procTree.result != null)
-                        tLog.AppendText("resutl ref="+ _procTree.result.IsRef + " type=" + _procTree.result.type  + NL);
-
-                    tLog.AppendText("*****************************************" + NL);
-                    foreach (var par in _procTree.parameters)
+                    if (b_next == false)
                     {
-                        tLog.AppendText("name=" + par.Value.name + 
-                                        " ref=" + par.Value.IsRef + 
-                                        " type="+ par.Value.type + 
-                                        " def=" + par.Value.def_value + NL);
+                    
+                        tLog.AppendText("-----------------------------------------" + NL);
+                        tLog.AppendText(_procTree.IsPublic + " " + _procTree.type + " " + _procTree.name + NL);
+
+                        if (_procTree.result != null)
+                            tLog.AppendText("resutl ref=" + _procTree.result.IsRef + " type=" + _procTree.result.type + NL);
+
+                        tLog.AppendText("*****************************************" + NL);
+                        foreach (var par in _procTree.parameters)
+                        {
+                            tLog.AppendText("name=" + par.Value.name +
+                                            " ref=" + par.Value.IsRef +
+                                            " type=" + par.Value.type +
+                                            " def=" + par.Value.def_value + NL);
+                        }
+                        // tLog.AppendText(prog_param.Replace('\t', ' ') + NL);
+                        tLog.AppendText("*****************************************" + NL);
+
+                        tree_code.programms.Add(proc_cnt, _procTree);
+
+                        //prog_name = null;
+                        _procTree = null;
+                        prog_param = null;
+                        b_scope_cnt = 0;
+                        e_scope_cnt = 0;
+                        l_str = null;
+                        b_next = true;
+                       
+                        begin_cnt = 0;
+                        end_cnt = 0;
+
+                        proc_cnt++;
                     }
-                   // tLog.AppendText(prog_param.Replace('\t', ' ') + NL);
-                    tLog.AppendText("*****************************************" + NL);
-
-                    tree_code.programms.Add(proc_cnt, _procTree);
-
-                    //prog_name = null;
-                    _procTree = null;
-                    prog_param = null;
-                    b_scope_cnt = 0;
-                    e_scope_cnt = 0;
-                    l_str = null;
-                    b_next = true;
-                    b_end_par_str = false;
-
-                    proc_cnt++;
+                    n_str++;
                 }
-                n_str++;
             }
-        }
-
+        
 
         public void LoadJson(string p_file)
         {
